@@ -177,8 +177,9 @@ class Decoder(nn.Module):
                          dilation_growth_rate,
                          reverse_dilation=True,
                          activation=activation,
-                         norm=norm), nn.Upsample(scale_factor=2,
-                                                 mode='nearest'),
+                         norm=norm), 
+                         nn.Upsample(scale_factor=2,
+                                     mode='nearest'),
                 nn.Conv1d(width, out_dim, 3, 1, 1))
             blocks.append(block)
         blocks.append(nn.Conv1d(width, width, 3, 1, 1))
