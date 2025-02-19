@@ -1,7 +1,7 @@
 NAME: VQVAE_HumanML3D # Experiment names
-ACCELERATOR: 'gpu' # Devices optioncal: “cpu”, “gpu”, “tpu”, “ipu”, “hpu”, “mps, “auto”
+ACCELERATOR: 'gpu' # Devices optioncal: "cpu", "gpu", "tpu", "ipu", "hpu", "mps, "auto"
 NUM_NODES: 1 # Number of GPU nodes for distributed training
-DEVICE: [0, 1, 2] # Index of gpus eg. [0] or [0,1,2,3]
+DEVICE: [0] # Index of gpus eg. [0] or [0,1,2,3]
 
 TRAIN:
   #---------------------------------
@@ -53,8 +53,14 @@ model:
     motion_vae: ${vq.default}
 
 LOGGER:
-  TYPE: ['tensorboard']
+  TYPE: ['wandb']
   VAL_EVERY_STEPS: 10
   WANDB:
     params:
       project: motiongpt
+      settings:
+        init_timeout: 120  # Increase timeout for distributed setup
+      # Add these for distributed training
+      log_model: True
+      mode: 'online'
+      reinit: True
