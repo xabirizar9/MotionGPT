@@ -1,8 +1,9 @@
 apt-get update && apt-get install -y zsh && sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
 
-apt-get install -y git-lfs vim
+apt-get install -y git-lfs vim zip
 
 pip install uv
+
 uv sync
 uv venv
 
@@ -13,7 +14,7 @@ git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-~/.oh-m
 
 # Add zsh-autosuggestions to the plugins list
 if ! grep -q "zsh-autosuggestions" ~/.zshrc; then
-    sed -i 's/^plugins=(.*)/plugins=(\1 zsh-autosuggestions)/' ~/.zshrc
+    sed -i 's/plugins=(/plugins=(zsh-autosuggestions /' ~/.zshrc
 fi
 
 # Add zsh-syntax-highlighting to the plugins list
@@ -23,6 +24,10 @@ git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:
 if ! grep -q "zsh-syntax-highlighting" ~/.zshrc; then
     # Remove the closing parenthesis, add the new plugin, and add the closing parenthesis back
     sed -i 's/plugins=(/plugins=(zsh-syntax-highlighting /' ~/.zshrc
+fi
+# Add virtual environment activation to zshrc if not already present
+if ! grep -q "source .venv/bin/activate" ~/.zshrc; then
+    echo "source .venv/bin/activate" >> ~/.zshrc
 fi
 
 bash prepare/download_pretrained_models.sh
