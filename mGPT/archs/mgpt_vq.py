@@ -25,6 +25,7 @@ class VQVae(nn.Module):
                  dilation_growth_rate=3,
                  norm=None,
                  activation: str = "relu",
+                 codebook_logger: dict = None,
                  **kwargs) -> None:
 
         super().__init__()
@@ -59,6 +60,8 @@ class VQVae(nn.Module):
             self.quantizer = QuantizeEMA(code_num, code_dim, mu=0.99)
         elif quantizer == "reset":
             self.quantizer = QuantizeReset(code_num, code_dim)
+        
+        self.seen_tokens = set()
 
     def preprocess(self, x):
         # (bs, T, Jx3) -> (bs, Jx3, T)
@@ -77,6 +80,8 @@ class VQVae(nn.Module):
         # Encode
         x_encoder = self.encoder(x_in)
 
+        # print("code_idx: ", x_encoder.shape)
+
         # quantization
         x_quantized, loss, perplexity = self.quantizer(x_encoder)
 
@@ -93,11 +98,13 @@ class VQVae(nn.Module):
 
         N, T, _ = features.shape
         x_in = self.preprocess(features)
-        x_encoder = self.encoder(x_in)
-        x_encoder = self.postprocess(x_encoder)
+        x_encoder = self.encoder(x_in) # encode to latent space
+
+        x_encoder = self.postprocess(x_encoder) # permutation
         x_encoder = x_encoder.contiguous().view(-1,
                                                 x_encoder.shape[-1])  # (NT, C)
-        code_idx = self.quantizer.quantize(x_encoder)
+
+        code_idx = self.quantizer.quantize(x_encoder) # quantize to codebook
         code_idx = code_idx.view(N, -1)
 
         # latent, dist

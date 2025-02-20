@@ -44,18 +44,6 @@ class BaseModel(LightningModule):
         if not self.trainer.sanity_checking:
             self.log_dict(dico, sync_dist=True, rank_zero_only=True)
 
-    def on_validation_epoch_end(self):
-        # Log steps and losses
-        dico = self.step_log_dict()
-        # Log losses
-        dico.update(self.loss_log_dict('train'))
-        dico.update(self.loss_log_dict('val'))
-        # Log metrics
-        dico.update(self.metrics_log_dict())
-        # Write to log only if not sanity check
-        if not self.trainer.sanity_checking:
-            self.log_dict(dico, sync_dist=True, rank_zero_only=True)
-
     def on_test_epoch_end(self):
         # Log metrics
         dico = self.metrics_log_dict()

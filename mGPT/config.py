@@ -169,6 +169,7 @@ def parse_args(phase="train"):
     cfg_base = OmegaConf.load(pjoin(cfg_assets.CONFIG_FOLDER, 'default.yaml'))
     cfg_exp = OmegaConf.merge(cfg_base, OmegaConf.load(params.cfg))
     if not cfg_exp.FULL_CONFIG:
+        print("Loading full config...")
         cfg_exp = get_module_config(cfg_exp, cfg_assets.CONFIG_FOLDER)
     cfg = OmegaConf.merge(cfg_exp, cfg_assets)
 

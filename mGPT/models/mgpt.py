@@ -376,8 +376,8 @@ class MotionGPT(BaseModel):
         if self.hparams.stage == "vae" and split in ["train", "val"]:
             rs_set = self.train_vae_forward(batch)
             loss = self._losses['losses_' + split].update(rs_set)
-        elif self.hparams.stage in ["lm_instruct", "lm_pretrain"
-                                    ] and split in ["train"]:
+
+        elif self.hparams.stage in ["lm_instruct", "lm_pretrain"] and split in ["train"]:
             rs_set = self.train_lm_forward(batch)
             loss = self._losses['losses_' + split].update(rs_set)
         elif self.hparams.stage == 'lm_rl' and split in ['train']:
@@ -492,3 +492,24 @@ class MotionGPT(BaseModel):
                 # return batch["length"]
 
         return loss
+
+    def on_validation_epoch_end(self):
+        """Calculate and log codebook usage stats at the end of validation"""
+        # Call parent class validation_epoch_end to compute other metrics
+        dico = self.step_log_dict()
+        # Log losses
+        dico.update(self.loss_log_dict('train'))
+        dico.update(self.loss_log_dict('val'))
+        # Log metrics
+        dico.update(self.metrics_log_dict())
+        # Write to log only if not sanity check
+        
+        # Only calculate codebook stats during VAE training
+        if self.hparams.stage == "vae":
+            if hasattr(self.vae.quantizer, 'get_token_usage_stats'):
+                stats = self.vae.quantizer.get_token_usage_stats()  # This also resets the counter
+                # Add codebook usage to dico
+                dico['val/codebook_usage_percent'] = stats['val/codebook_usage_percent']
+
+        if not self.trainer.sanity_checking:
+            self.log_dict(dico, sync_dist=True, rank_zero_only=True)

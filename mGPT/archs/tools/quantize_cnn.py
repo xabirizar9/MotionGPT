@@ -9,6 +9,8 @@ class QuantizeEMAReset(nn.Module):
         self.nb_code = nb_code
         self.code_dim = code_dim
         self.mu = mu
+        # Register buffer for validation tracking
+        self.register_buffer('val_token_frequencies', torch.zeros(nb_code, dtype=torch.long))
         self.reset_codebook()
         
     def reset_codebook(self):
@@ -82,16 +84,41 @@ class QuantizeEMAReset(nn.Module):
     def quantize(self, x):
         # Calculate latent code x_l
         k_w = self.codebook.t()
-        distance = torch.sum(x ** 2, dim=-1, keepdim=True) - 2 * torch.matmul(x, k_w) + torch.sum(k_w ** 2, dim=0,
-                                                                                            keepdim=True)  # (N * L, b)
+        
+        distance = torch.sum(x ** 2, dim=-1, keepdim=True) - 2 * torch.matmul(x, k_w) + torch.sum(k_w ** 2, dim=0, keepdim=True)  # (N * L, b)
+        
         _, code_idx = torch.min(distance, dim=-1)
+        
+        # Update frequencies only during validation
+        if not self.training:
+            with torch.no_grad():
+                new_counts = torch.bincount(code_idx, minlength=self.nb_code)
+                self.val_token_frequencies += new_counts
+                
         return code_idx
 
     def dequantize(self, code_idx):
         x = F.embedding(code_idx, self.codebook)
         return x
 
-    
+    def get_token_usage_stats(self):
+        """Get token usage statistics and reset counters"""
+        with torch.no_grad():
+            used_tokens = (self.val_token_frequencies > 0).sum().item()
+            total_tokens = self.val_token_frequencies.sum().item()
+            usage_percentage = (used_tokens / self.nb_code) * 100
+            
+            stats = {
+                'val/unique_tokens': used_tokens,
+                'val/total_tokens': total_tokens,
+                'val/codebook_usage_percent': usage_percentage,
+            }
+            
+            # Reset counters for next validation epoch
+            self.val_token_frequencies.zero_()
+            
+            return stats
+
     def forward(self, x):
         N, width, T = x.shape
 
