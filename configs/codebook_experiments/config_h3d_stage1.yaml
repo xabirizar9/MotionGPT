@@ -1,4 +1,4 @@
-NAME: VQVAE_HumanML3D # Experiment names
+NAME: Codebook_VQVAE_Experiment # Experiment names
 ACCELERATOR: 'gpu' # Devices optioncal: "cpu", "gpu", "tpu", "ipu", "hpu", "mps, "auto"
 NUM_NODES: 1 # Number of GPU nodes for distributed training
 DEVICE: [0, 1, 2] # Index of gpus eg. [0] or [0,1,2,3]
