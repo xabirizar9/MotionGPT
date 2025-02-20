@@ -3,6 +3,7 @@
 from typing import List, Optional, Union
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch import Tensor, nn
 from torch.distributions.distribution import Distribution
 from .tools.resnet import Resnet1D
@@ -80,16 +81,68 @@ class VQVae(nn.Module):
         # Encode
         x_encoder = self.encoder(x_in)
 
-        # print("code_idx: ", x_encoder.shape)
-
         # quantization
-        x_quantized, loss, perplexity = self.quantizer(x_encoder)
+        x_quantized, commit_loss, perplexity = self.quantizer(x_encoder)
+
+        # Compute rotation matrix with detached gradients and apply rotation trick
+        with torch.no_grad():
+            # Normalize vectors for computing rotation
+            e_norm = F.normalize(x_encoder.detach(), dim=-1)
+            q_norm = F.normalize(x_quantized.detach(), dim=-1)
+            
+            # Compute r = (e + q)/||e + q|| for Householder reflection
+            r = (e_norm + q_norm)
+            r = F.normalize(r, dim=-1)
+            
+            # Compute rotation matrix R = I - 2rr^T + 2qe^T
+            B, L, D = x_encoder.shape
+            I = torch.eye(D, device=x_encoder.device).expand(B, L, D, D)
+            rrt = torch.einsum('bli,blj->blij', r, r)
+            qet = torch.einsum('bli,blj->blij', q_norm, e_norm)
+            R = I - 2 * rrt + 2 * qet
+
+            # Scale factor to preserve norms
+            scaling = (x_quantized.norm(dim=-1) / x_encoder.norm(dim=-1)).unsqueeze(-1)
+
+        # Apply rotation and scaling as constants during backprop
+        x_quantized_rotated = scaling * torch.einsum('blij,blj->bli', R, x_encoder)
 
         # decoder
-        x_decoder = self.decoder(x_quantized)
+        x_decoder = self.decoder(x_quantized_rotated)
         x_out = self.postprocess(x_decoder)
 
-        return x_out, loss, perplexity
+        return x_out, commit_loss, perplexity
+    
+    def compute_rotation_matrix(self, e, q):
+        """
+        Compute rotation matrix using Householder reflections to align z_e with z_q.
+        Args:
+            z_e: Encoder output (batch_size, seq_len, embedding_dim)
+            e: Nearest codebook vector (batch_size, seq_len, embedding_dim)
+        Returns:
+            Rotation matrices (batch_size, seq_len, embedding_dim, embedding_dim)
+        """
+        # Normalize vectors
+        scaling_factor = (q.norm(dim=-1) / (e.norm(dim=-1) + 1e-6)).unsqueeze(-1)
+        
+        # Compute r = (e + q)/||e + q||
+        r = (e + q) / (e + q).norm(dim=-1, keepdim=True)
+        
+        # Compute rotation matrix R = I - 2rr^T + 2qe^T
+        B, L, D = e.shape
+        I = torch.eye(D, device=e.device).expand(B, L, D, D)
+        
+        # Compute rr^T term
+        rrt = torch.einsum('bli,blj->blij', r, r)  # (B, L, D, D)
+        
+        # Compute qe^T term
+        qe_t = torch.einsum('bli,blj->blij', q, e)  # (B, L, D, D)
+        
+        # Final rotation matrix
+        R = I - 2 * rrt + 2 * qe_t  # (B, L, D, D)
+
+        
+        return R, scaling_factor
 
     def encode(
         self,
