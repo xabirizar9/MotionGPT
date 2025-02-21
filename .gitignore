@@ -1,5 +1,5 @@
-mGPT/
 experiments/
 cache/
 checkpoints/
 deps/
+__pycache__
