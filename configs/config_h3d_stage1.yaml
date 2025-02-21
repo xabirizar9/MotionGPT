@@ -1,4 +1,4 @@
-NAME: VQVAE_HumanML3D_full_training # Experiment names
+NAME: VQVAE_HumanML3D_full_training_baseline # Experiment names
 ACCELERATOR: 'gpu' # Devices optioncal: "cpu", "gpu", "tpu", "ipu", "hpu", "mps, "auto"
 NUM_NODES: 1 # Number of GPU nodes for distributed training
 DEVICE: [0, 1, 2, 3] # Index of gpus eg. [0] or [0,1,2,3]
@@ -9,7 +9,7 @@ TRAIN:
   #---------------------------------
   NUM_WORKERS: 16 # Number of workers
   BATCH_SIZE: 1024 # Size of batches
-  END_EPOCH: 700 # End epoch
+  END_EPOCH: 300 # End epoch
   RESUME: '' # Resume training from this path
   # PRETRAINED: 'experiments/mgpt/VQVAE_HumanML3D/checkpoints/last.ckpt' # Preatrained model path
   PRETRAINED: '' # Preatrained model path
