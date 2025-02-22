@@ -122,8 +122,6 @@ class VQVae(nn.Module):
         x_out = self.postprocess(x_decoder)
 
         return x_out, commit_loss, perplexity
-    
-    def compute_rotation_matrix(self, e, q):
         """
         Compute rotation matrix using Householder reflections to align z_e with z_q.
         Args:
