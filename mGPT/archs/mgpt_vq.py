@@ -27,14 +27,14 @@ class VQVae(nn.Module):
                  norm=None,
                  activation: str = "relu",
                  codebook_logger: dict = None,
-                 apply_rotation_trick: bool = False,
-                 num_branches: int = 1,
+                 apply_rotation_trick: bool = True,
+                 num_branches: int = 2,
                  **kwargs) -> None:
 
         super().__init__()
 
-        print(f"Applying rotation trick: {apply_rotation_trick}")
-        print(f"Number of branches: {num_branches}")
+        print(f"num_branches: {num_branches}")
+        print("Applying rotation trick: ", apply_rotation_trick)
 
         self.code_dim = code_dim
 
@@ -96,24 +96,24 @@ class VQVae(nn.Module):
             with torch.no_grad():
                 # Normalize vectors for computing rotation
                 e_norm = F.normalize(x_encoder.detach(), dim=-1)
-                q_norm = F.normalize(x_quantized.detach(), dim=-1)
-                
-                # Compute r = (e + q)/||e + q|| for Householder reflection
-                r = (e_norm + q_norm)
-                r = F.normalize(r, dim=-1)
-                
-                # Compute rotation matrix R = I - 2rr^T + 2qe^T
-                B, L, D = x_encoder.shape
-                I = torch.eye(D, device=x_encoder.device).expand(B, L, D, D)
-                rrt = torch.einsum('bli,blj->blij', r, r)
-                qet = torch.einsum('bli,blj->blij', q_norm, e_norm)
-                R = I - 2 * rrt + 2 * qet
+            q_norm = F.normalize(x_quantized.detach(), dim=-1)
+            
+            # Compute r = (e + q)/||e + q|| for Householder reflection
+            r = (e_norm + q_norm)
+            r = F.normalize(r, dim=-1)
+            
+            # Compute rotation matrix R = I - 2rr^T + 2qe^T
+            B, L, D = x_encoder.shape
+            I = torch.eye(D, device=x_encoder.device).expand(B, L, D, D)
+            rrt = torch.einsum('bli,blj->blij', r, r)
+            qet = torch.einsum('bli,blj->blij', q_norm, e_norm)
+            R = I - 2 * rrt + 2 * qet
 
-                # Scale factor to preserve norms
-                scaling = (x_quantized.norm(dim=-1) / x_encoder.norm(dim=-1)).unsqueeze(-1)
+            # Scale factor to preserve norms
+            scaling = (x_quantized.norm(dim=-1) / x_encoder.norm(dim=-1)).unsqueeze(-1)
 
             # Apply rotation and scaling as constants during backprop
-                x_quantized_rotated = scaling * torch.einsum('blij,blj->bli', R, x_encoder)
+            x_quantized_rotated = scaling * torch.einsum('blij,blj->bli', R, x_encoder)
         else:
             x_quantized_rotated = x_quantized
         
@@ -185,7 +185,6 @@ class VQVae(nn.Module):
 
 
 class Encoder(nn.Module):
-
     def __init__(self,
                  input_emb_width=3,
                  output_emb_width=512,
