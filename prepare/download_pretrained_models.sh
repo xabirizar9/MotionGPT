@@ -1,3 +1,5 @@
+#!/bin/bash
+
 mkdir -p checkpoints/
 cd checkpoints/
 echo -e "The pretrained models will stored in the 'checkpoints' folder\n"
