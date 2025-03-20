@@ -9,8 +9,8 @@ params:
   width: 512
   depth: 3
   dilation_growth_rate: 3
-  apply_rotation_trick: True
-  num_branches: 2
+  apply_rotation_trick: False
+  num_branches: 1
   norm: None
   activation: 'relu'
   nfeats: ${DATASET.NFEATS}

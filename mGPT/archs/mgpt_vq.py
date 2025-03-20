@@ -122,35 +122,7 @@ class VQVae(nn.Module):
         x_out = self.postprocess(x_decoder)
 
         return x_out, commit_loss, perplexity
-        """
-        Compute rotation matrix using Householder reflections to align z_e with z_q.
-        Args:
-            z_e: Encoder output (batch_size, seq_len, embedding_dim)
-            e: Nearest codebook vector (batch_size, seq_len, embedding_dim)
-        Returns:
-            Rotation matrices (batch_size, seq_len, embedding_dim, embedding_dim)
-        """
-        # Normalize vectors
-        scaling_factor = (q.norm(dim=-1) / (e.norm(dim=-1) + 1e-6)).unsqueeze(-1)
-        
-        # Compute r = (e + q)/||e + q||
-        r = (e + q) / (e + q).norm(dim=-1, keepdim=True)
-        
-        # Compute rotation matrix R = I - 2rr^T + 2qe^T
-        B, L, D = e.shape
-        I = torch.eye(D, device=e.device).expand(B, L, D, D)
-        
-        # Compute rr^T term
-        rrt = torch.einsum('bli,blj->blij', r, r)  # (B, L, D, D)
-        
-        # Compute qe^T term
-        qe_t = torch.einsum('bli,blj->blij', q, e)  # (B, L, D, D)
-        
-        # Final rotation matrix
-        R = I - 2 * rrt + 2 * qe_t  # (B, L, D, D)
-
-        
-        return R, scaling_factor
+    
 
     def encode(
         self,
@@ -195,7 +167,7 @@ class Encoder(nn.Module):
                  norm=None):
         super().__init__()
 
-        # Regular stride branch
+        # Simplified to single branch architecture
         blocks1 = []
         filter_t, pad_t = stride_t * 2, stride_t // 2
         blocks1.append(nn.Conv1d(input_emb_width, width, 3, 1, 1))
@@ -212,38 +184,8 @@ class Encoder(nn.Module):
         blocks1.append(nn.Conv1d(width, output_emb_width, 3, 1, 1))
         self.branch1 = nn.Sequential(*blocks1)
 
-        # Wide stride branch
-        blocks2 = []
-        stride_t_wide = 4  # Wider stride
-        filter_t_wide, pad_t_wide = stride_t_wide * 2, stride_t_wide // 2
-        blocks2.append(nn.Conv1d(input_emb_width, width, 3, 1, 1))
-        blocks2.append(nn.ReLU())
-
-        for i in range(down_t):
-            input_dim = width
-            block = nn.Sequential(
-                nn.Conv1d(input_dim, width, filter_t_wide, stride_t_wide, pad_t_wide),
-                Resnet1D(width, depth, dilation_growth_rate,
-                        activation=activation, norm=norm),
-            )
-            blocks2.append(block)
-        blocks2.append(nn.Conv1d(width, output_emb_width, 3, 1, 1))
-        self.branch2 = nn.Sequential(*blocks2)
-
-        # Fusion layer
-        self.fusion = nn.Conv1d(output_emb_width * 2, output_emb_width, 1, 1, 0)
-
     def forward(self, x):
-        # Process both branches
-        out1 = self.branch1(x)
-        out2 = self.branch2(x)
-        
-        # Interpolate wider stride branch to match size of regular branch
-        out2 = F.interpolate(out2, size=out1.shape[-1], mode='linear', align_corners=False)
-        
-        # Combine features
-        combined = torch.cat([out1, out2], dim=1)
-        return self.fusion(combined)
+        return self.branch1(x)
 
 
 class Decoder(nn.Module):
@@ -260,10 +202,7 @@ class Decoder(nn.Module):
                  norm=None):
         super().__init__()
 
-        # Split input into two branches
-        self.split = nn.Conv1d(output_emb_width, output_emb_width * 2, 1, 1, 0)
-
-        # Regular stride branch
+        # Simplified to single branch architecture
         blocks1 = []
         filter_t, pad_t = stride_t * 2, stride_t // 2
         blocks1.append(nn.Conv1d(output_emb_width, width, 3, 1, 1))
@@ -284,43 +223,5 @@ class Decoder(nn.Module):
         blocks1.append(nn.Conv1d(width, input_emb_width, 3, 1, 1))
         self.branch1 = nn.Sequential(*blocks1)
 
-        # Wide stride branch
-        blocks2 = []
-        stride_t_wide = 4  # Matching encoder's wider stride
-        filter_t_wide, pad_t_wide = stride_t_wide * 2, stride_t_wide // 2
-        blocks2.append(nn.Conv1d(output_emb_width, width, 3, 1, 1))
-        blocks2.append(nn.ReLU())
-        
-        for i in range(down_t):
-            out_dim = width
-            block = nn.Sequential(
-                Resnet1D(width, depth, dilation_growth_rate,
-                        reverse_dilation=True, activation=activation,
-                        norm=norm),
-                nn.Upsample(scale_factor=4, mode='nearest'),  # Wider upsampling
-                nn.Conv1d(width, out_dim, 3, 1, 1))
-            blocks2.append(block)
-        
-        blocks2.append(nn.Conv1d(width, width, 3, 1, 1))
-        blocks2.append(nn.ReLU())
-        blocks2.append(nn.Conv1d(width, input_emb_width, 3, 1, 1))
-        self.branch2 = nn.Sequential(*blocks2)
-
-        # Final fusion layer
-        self.fusion = nn.Conv1d(input_emb_width * 2, input_emb_width, 1, 1, 0)
-
     def forward(self, x):
-        # Split features for two branches
-        split_features = self.split(x)
-        features1, features2 = torch.chunk(split_features, 2, dim=1)
-        
-        # Process both branches
-        out1 = self.branch1(features1)
-        out2 = self.branch2(features2)
-        
-        # Interpolate the second branch to match the first branch's size
-        out2 = F.interpolate(out2, size=out1.shape[-1], mode='linear', align_corners=False)
-        
-        # Combine and fuse
-        combined = torch.cat([out1, out2], dim=1)
-        return self.fusion(combined)
+        return self.branch1(x)
